@@ -1,0 +1,50 @@
+{
+    "title": "The magic of Prince",
+    "headings": [
+        {
+            "text": "Table of contents",
+            "level": "H2",
+            "page_number": 1
+        },
+        {
+            "text": "#1: Hyphenation",
+            "level": "H2",
+            "page_number": 1
+        },
+        {
+            "text": "#2: Rounded borders",
+            "level": "H2",
+            "page_number": 1
+        },
+        {
+            "text": "#3: Character substitution",
+            "level": "H2",
+            "page_number": 1
+        },
+        {
+            "text": "#9: Counters",
+            "level": "H2",
+            "page_number": 2
+        },
+        {
+            "text": "#10: Crop and cross marks",
+            "level": "H2",
+            "page_number": 2
+        },
+        {
+            "text": "#11: Cross-references",
+            "level": "H2",
+            "page_number": 2
+        },
+        {
+            "text": "#12: Math",
+            "level": "H2",
+            "page_number": 2
+        },
+        {
+            "text": "#13: Footnotes",
+            "level": "H2",
+            "page_number": 2
+        }
+    ]
+}

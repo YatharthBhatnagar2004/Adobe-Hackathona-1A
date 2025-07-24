@@ -1,0 +1,8 @@
+PyMuPDF
+pandas
+scikit-learn
+joblib
+thefuzz
+python-Levenshtein
+pytesseract
+Pillow

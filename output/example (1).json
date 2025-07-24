@@ -1,0 +1,35 @@
+{
+    "title": "USENIX Example Paper",
+    "headings": [
+        {
+            "text": "Abstract",
+            "level": "H2",
+            "page_number": 1
+        },
+        {
+            "text": "1 Introduction",
+            "level": "H2",
+            "page_number": 1
+        },
+        {
+            "text": "3.1 HTML5",
+            "level": "H3",
+            "page_number": 2
+        },
+        {
+            "text": "3.2 CSS",
+            "level": "H3",
+            "page_number": 2
+        },
+        {
+            "text": "5 Conclusions",
+            "level": "H2",
+            "page_number": 3
+        },
+        {
+            "text": "Acknowledgments",
+            "level": "H2",
+            "page_number": 3
+        }
+    ]
+}

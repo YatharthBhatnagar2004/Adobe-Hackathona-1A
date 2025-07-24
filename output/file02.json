@@ -1,0 +1,35 @@
+{
+    "title": "Overview",
+    "headings": [
+        {
+            "text": "Table of Contents",
+            "level": "H1",
+            "page_number": 4
+        },
+        {
+            "text": "Intended Audience",
+            "level": "H2",
+            "page_number": 4
+        },
+        {
+            "text": "Career Paths for Testers",
+            "level": "H2",
+            "page_number": 4
+        },
+        {
+            "text": "Learning Objectives",
+            "level": "H2",
+            "page_number": 4
+        },
+        {
+            "text": "Entry Requirements",
+            "level": "H2",
+            "page_number": 4
+        },
+        {
+            "text": "Structure and Course Duration",
+            "level": "H2",
+            "page_number": 4
+        }
+    ]
+}

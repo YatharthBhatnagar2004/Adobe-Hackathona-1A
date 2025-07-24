@@ -1,0 +1,25 @@
+{
+    "title": "Anatomy of the Somatosensory System",
+    "headings": [
+        {
+            "text": "Cutaneous receptors",
+            "level": "H2",
+            "page_number": 1
+        },
+        {
+            "text": "Nociceptors",
+            "level": "H2",
+            "page_number": 2
+        },
+        {
+            "text": "Muscle Spindles",
+            "level": "H2",
+            "page_number": 3
+        },
+        {
+            "text": "Joint receptors",
+            "level": "H2",
+            "page_number": 4
+        }
+    ]
+}
