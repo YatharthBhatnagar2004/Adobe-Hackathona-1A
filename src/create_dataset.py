@@ -1,268 +1,147 @@
-import pandas as pd
+#!/usr/bin/env python3
+"""
+src/create_dataset.py (Best and Final Version)
+Extracts a rich, line-by-line feature set to create the highest quality dataset.
+Uses multiprocessing for maximum speed.
+"""
+
 import json
-import os
-import fitz  # PyMuPDF
 import re
-from collections import Counter
-from thefuzz import fuzz
-from PIL import Image
-import pytesseract
-import io
+from pathlib import Path
+from collections import Counter, defaultdict
 import multiprocessing
-import joblib
+import fitz  # PyMuPDF
+import pandas as pd
+from rapidfuzz import fuzz
+from tqdm import tqdm
 
-TESSERACT_CMD_PATH = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-SAMPLES_DIR = "data/samples"
-PDF_DIR = os.path.join(SAMPLES_DIR, "input_pdfs")
-JSON_DIR = os.path.join(SAMPLES_DIR, "ground_truth_jsons")
-PROCESSED_DATA_PATH = "data/processed/labeled_data.csv"
-CLASSIFIER_PATH = "models/classifier_v2.joblib"
+# Paths
+PROJECT_ROOT     = Path(__file__).parent.parent
+INPUT_PDF_DIR    = PROJECT_ROOT / "data" / "samples" / "input_pdfs"
+GROUNDTRUTH_DIR  = PROJECT_ROOT / "data" / "samples" / "ground_truth_jsons"
+OUTPUT_CSV_DIR   = PROJECT_ROOT / "data" / "processed"
+OUTPUT_CSV_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_CSV       = OUTPUT_CSV_DIR / "labeled_data.csv"
 
-if os.path.exists(TESSERACT_CMD_PATH):
-    pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD_PATH
-
-def _ocr_worker(image_bytes, return_dict):
+# ──────────────────────────────────────────────────────────────
+# Feature Extraction Function (Line-by-Line)
+# ──────────────────────────────────────────────────────────────
+def extract_features(pdf_path: Path) -> pd.DataFrame:
+    rows = []
     try:
-        image = Image.open(io.BytesIO(image_bytes))
-        ocr_data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DATAFRAME)
-        return_dict['ocr_data'] = ocr_data
+        doc = fitz.open(pdf_path)
     except Exception as e:
-        return_dict['error'] = str(e)
-
-def extract_text_with_ocr(page: fitz.Page, ocr_timeout=10) -> list:
-    ocr_lines = []
-    try:
-        pix = page.get_pixmap(dpi=300)
-        img_bytes = pix.tobytes("png")
-        manager = multiprocessing.Manager()
-        return_dict = manager.dict()
-        p = multiprocessing.Process(target=_ocr_worker, args=(img_bytes, return_dict))
-        p.start()
-        p.join(ocr_timeout)
-        if p.is_alive():
-            p.terminate()
-            p.join()
-            print(f"  -> OCR timed out on page {page.number + 1}")
-            return ocr_lines
-        if 'error' in return_dict:
-            print(f"  -> OCR failed on page {page.number + 1}: {return_dict['error']}")
-            return ocr_lines
-        ocr_data = return_dict.get('ocr_data', None)
-        if ocr_data is not None and not ocr_data.empty:
-            for _, group in ocr_data.groupby(['block_num', 'par_num', 'line_num']):
-                line_text = ' '.join(group['text'].astype(str))
-                x0, y0 = group['left'].min(), group['top'].min()
-                x1, y1 = (group['left'] + group['width']).max(), (group['top'] + group['height']).max()
-                is_all_caps = line_text.isupper() and len(line_text) > 1
-                ocr_lines.append({
-                    'text': line_text, 'font_size': 12, 'font_name': 'OCR',
-                    'is_bold': False, 'bbox': (x0, y0, x1, y1),
-                    'page_number': page.number + 1, 'y_position': y0,
-                    'is_all_caps': is_all_caps, 'x_position': x0
-                })
-    except Exception as e:
-        print(f"  -> OCR failed on page {page.number + 1}: {e}")
-    return ocr_lines
-
-def extract_features_from_pdf(pdf_path: str) -> pd.DataFrame:
-    doc = fitz.open(pdf_path)
-    lines_data = []
-    for page_num, page in enumerate(doc):
-        text_page = page.get_text("dict", flags=fitz.TEXTFLAGS_DICT)
-        page_lines = []
-        for block in text_page["blocks"]:
-            if block['type'] == 0:
-                for line in block['lines']:
-                    line_text = " ".join(span['text'] for span in line['spans']).strip()
-                    if not line_text: continue
-                    font_sizes = [span['size'] for span in line['spans']]
-                    font_names = [span['font'] for span in line['spans']]
-                    most_common_font = Counter(font_names).most_common(1)[0][0] if font_names else 'N/A'
-                    is_bold = any(style in most_common_font.lower() for style in ['bold', 'black', 'heavy'])
-                    is_all_caps = line_text.isupper() and len(line_text) > 1
-                    x_position = round(line['bbox'][0])
-                    y_position = line['bbox'][1]
-                    page_lines.append({
-                        'text': line_text, 'font_size': max(font_sizes) if font_sizes else 0,
-                        'font_name': most_common_font, 'is_bold': is_bold,
-                        'bbox': line['bbox'], 'page_number': page_num + 1,
-                        'y_position': y_position,
-                        'is_all_caps': is_all_caps, 'x_position': x_position
-                    })
-        if len("".join([line['text'] for line in page_lines])) < 100:
-            print(f"  -> Page {page_num + 1} has little text. Attempting OCR...")
-            ocr_page_lines = extract_text_with_ocr(page)
-            lines_data.extend(ocr_page_lines if ocr_page_lines else page_lines)
-        else:
-            lines_data.extend(page_lines)
-    if not lines_data:
         return pd.DataFrame()
-    df = pd.DataFrame(lines_data)
-    df['word_count'] = df['text'].apply(lambda x: len(x.split()))
-    if not df.empty:
-        df['is_centered'] = abs(df['x_position'] - df['x_position'].median()) < 20
-        df['is_title_case'] = df['text'].apply(lambda x: x.istitle())
-        df['has_numbers'] = df['text'].str.contains(r'\d')
-        df['has_symbols'] = df['text'].str.contains(r'[•\-\*]')
+
+    for page_num, page in enumerate(doc, 1):
+        # Extract text blocks and sort them vertically
+        blocks = sorted([b for b in page.get_text("dict")["blocks"] if b["type"] == 0 and "lines" in b], key=lambda b: b["bbox"][1])
+
+        if not blocks:
+            continue
+
+        # Get all line texts with their sizes and positions for context
+        all_lines = []
+        for b in blocks:
+            for l in b["lines"]:
+                # Get the most common font size and style for the line
+                span_sizes = [s["size"] for s in l["spans"]]
+                line_size = Counter(span_sizes).most_common(1)[0][0] if span_sizes else 0
+                all_lines.append({
+                    "text": "".join(s["text"] for s in l["spans"]).strip(),
+                    "size": line_size,
+                    "bbox": l["bbox"],
+                    "spans": l["spans"]
+                })
+
+        # Calculate body font size for the page
+        sizes = [line["size"] for line in all_lines if line["size"] > 4]
+        body_font_size = Counter(sizes).most_common(1)[0][0] if sizes else 12.0
+
+        for i, line in enumerate(all_lines):
+            text = line["text"]
+            if not text:
+                continue
+
+            spans = line["spans"]
+            font_size = line["size"]
+            font_name = Counter(s["font"] for s in spans).most_common(1)[0][0] if spans else "N/A"
+            is_bold = any(("bold" in s["font"].lower() or s["flags"] & 16) for s in spans)
+
+            # Contextual spacing
+            space_before = line["bbox"][1] - all_lines[i-1]["bbox"][3] if i > 0 else line["bbox"][1]
+            space_after = all_lines[i+1]["bbox"][1] - line["bbox"][3] if i < len(all_lines) - 1 else page.rect.height - line["bbox"][3]
+            is_standalone_line = int(space_before > font_size * 0.5 and space_after > font_size * 0.5)
+
+            chars = len(text)
+            words = len(text.split())
+
+            rows.append({
+                "document": pdf_path.name,
+                "text": text,
+                "font_size": font_size,
+                "font_name": font_name,
+                "is_bold": int(is_bold),
+                "is_standalone_line": is_standalone_line,
+                "page_number": page_num,
+                "x_position": line["bbox"][0],
+                "y_position": line["bbox"][1],
+                "word_count": words,
+                "char_count": chars,
+                "is_all_caps": int(text.isupper() and chars > 1),
+                "relative_font_size": round(font_size / body_font_size, 3) if body_font_size else 0,
+                "space_before_norm": round(space_before / font_size, 3) if font_size else 0,
+                "space_after_norm": round(space_after / font_size, 3) if font_size else 0,
+                "starts_with_number": int(bool(re.match(r"^\d", text))),
+            })
+    return pd.DataFrame(rows)
+
+def label_rows(df: pd.DataFrame, gt: list) -> pd.DataFrame:
+    df["label"] = "Body"
+    by_page = defaultdict(list)
+    for h in gt: by_page[h["page"]].append(h)
+    for idx, row in df.iterrows():
+        best_score, best_label = 0, "Body"
+        for h in by_page.get(row["page_number"], []):
+            score = fuzz.ratio(row["text"], h["text"])
+            if score > 95 and score > best_score:
+                best_label, best_score = h["level"], score
+        df.at[idx, "label"] = best_label
     return df
 
-def load_ground_truth_from_json(json_path: str) -> dict:
-    with open(json_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    return {
-        "title": data.get("title", ""),
-        "headings": data.get("outline") or data.get("headings") or []
-    }
+def process_single_pdf(pdf_path: Path) -> pd.DataFrame | None:
+    df = extract_features(pdf_path)
+    if df.empty: return None
+    gt_file = GROUNDTRUTH_DIR / f"{pdf_path.stem}.json"
+    if gt_file.exists():
+        with open(gt_file, "r", encoding="utf-8") as f:
+            outline = json.load(f).get("outline", [])
+        df = label_rows(df, outline)
+    else: df["label"] = "Body"
+    return df
 
-def normalize_text(text: str) -> str:
-    text = re.sub(r'[^a-z0-9\s]', '', text.lower())
-    text = re.sub(r'\b(manual|chapter|section|page|p)\b', '', text)
-    return re.sub(r'\s+', ' ', text).strip()
-
-def ngram_overlap(a: str, b: str, n: int = 3) -> float:
-    a_ngrams = set([a[i:i+n] for i in range(len(a)-n+1)])
-    b_ngrams = set([b[i:i+n] for i in range(len(b)-n+1)])
-    return len(a_ngrams & b_ngrams) / max(len(a_ngrams), len(b_ngrams)) if a_ngrams and b_ngrams else 0.0
-
-def multiline_candidates(df, max_lines=3):
-    for idx in range(len(df)):
-        yield (idx,), df.iloc[idx]['text']
-        if idx < len(df) - 1:
-            yield (idx, idx+1), df.iloc[idx]['text'] + ' ' + df.iloc[idx+1]['text']
-        if idx < len(df) - 2:
-            yield (idx, idx+1, idx+2), df.iloc[idx]['text'] + ' ' + df.iloc[idx+1]['text'] + ' ' + df.iloc[idx+2]['text']
-
-def label_dataset_with_ground_truth(features_df: pd.DataFrame, ground_truth: dict) -> pd.DataFrame:
-    features_df['label'] = 'Body'
-    match_algo = fuzz.token_set_ratio
-    all_gt_headings = ground_truth.get("headings", [])
-
-    # Define features list at the top so it's always available
-    features = [
-        'font_size', 'is_bold', 'x_position', 'y_position', 'word_count', 'is_all_caps',
-        'is_centered', 'is_title_case', 'has_numbers', 'has_symbols'
-    ]
-
-    # Title
-    if ground_truth.get("title"):
-        title_text = normalize_text(ground_truth["title"])
-        title_df = features_df[features_df['page_number'].isin([1, 2, 3])].copy()
-        X = features_df[features].copy()
-        title_df['match_ratio'] = title_df['text'].apply(lambda x: match_algo(normalize_text(x), title_text))
-        if not title_df.empty and title_df['match_ratio'].max() > 60:
-            best_match = title_df.loc[title_df['match_ratio'].idxmax()]
-            features_df.loc[best_match.name, 'label'] = 'Title'
-
-    # Headings H1–H7
-    for heading in all_gt_headings:
-        heading_text = heading.get("text", "").strip()
-        level = heading.get("level", "H3").upper()
-        if not (level.startswith("H") and level[1:].isdigit() and 1 <= int(level[1:]) <= 7):
-            level = "H3"
-        try:
-            page_num = int(heading.get("page", heading.get("page_number")))
-        except:
-            continue
-        heading_text_norm = normalize_text(heading_text)
-        search_df = features_df[features_df['page_number'].between(page_num - 3, page_num + 3)]
-        candidates = search_df[(search_df['font_size'] >= search_df['font_size'].quantile(0.80)) |
-                               (search_df['is_bold']) |
-                               (search_df['is_all_caps']) |
-                               (search_df['x_position'] < search_df['x_position'].quantile(0.20))]
-        best_score = 0
-        best_idx = None
-        for idx_tuple, candidate_text in multiline_candidates(candidates):
-            cand_norm = normalize_text(candidate_text)
-            fuzzy_score = match_algo(cand_norm, heading_text_norm)
-            ngram_score = ngram_overlap(cand_norm, heading_text_norm)
-            score = 0.7 * fuzzy_score / 100 + 0.3 * ngram_score
-            if score > best_score:
-                best_score = score
-                best_idx = idx_tuple
-        if best_score > 0.6:
-            for i in best_idx:
-                features_df.loc[candidates.index[i], 'label'] = level
-
-    # Classifier
-    try:
-        clf = joblib.load(CLASSIFIER_PATH)
-        for col in features:
-            if col not in features_df.columns:
-                features_df[col] = 0
-        X = features_df[features]
-        for col in X.select_dtypes(include=bool).columns:
-            X[col] = X[col].astype(int).to_numpy(copy=True)
-        preds = clf.predict(X)
-        for idx, pred in enumerate(preds):
-            if features_df.iloc[idx]['label'] == 'Body' and (pred.startswith("H") or pred == "Title"):
-                features_df.iloc[idx, features_df.columns.get_loc('label')] = pred
-    except Exception as e:
-        print(f"  -> Classifier integration failed: {e}")
-
-    return features_df
-
-def create_labeled_dataset():
-    pdf_files = {os.path.splitext(f)[0]: f for f in os.listdir(PDF_DIR) if f.lower().endswith('.pdf')}
-    json_files = {os.path.splitext(f)[0]: f for f in os.listdir(JSON_DIR) if f.lower().endswith('.json')}
-    base_names = sorted(list(set(pdf_files.keys()) & set(json_files.keys())))
-    print(f"Found {len(base_names)} matching PDF/JSON pairs to process.")
-    all_labeled_dfs = []
-
-    for name in base_names:
-        print(f"\nProcessing {name}...")
-        pdf_path = os.path.join(PDF_DIR, pdf_files[name])
-        json_path = os.path.join(JSON_DIR, json_files[name])
-        try:
-            features_df = extract_features_from_pdf(pdf_path)
-            if features_df.empty:
-                print(f"  -> Warning: No text extracted. Skipping.")
-                continue
-            # Skip empty JSON files
-            if os.path.getsize(json_path) == 0:
-                print(f"  -> ERROR: JSON file {json_files[name]} is empty. Skipping.")
-                continue
-            try:
-                gt = load_ground_truth_from_json(json_path)
-            except json.JSONDecodeError as e:
-                print(f"  -> ERROR: JSON file {json_files[name]} is invalid: {e}. Skipping.")
-                continue
-            labeled_df = label_dataset_with_ground_truth(features_df, gt)
-            labeled_df['filename'] = pdf_files[name]
-            all_labeled_dfs.append(labeled_df)
-        except Exception as e:
-            print(f"  -> ERROR processing {name}: {e}")
-            continue
-
-    if not all_labeled_dfs:
-        print("No data was processed. Exiting.")
+def main():
+    pdf_files = list(INPUT_PDF_DIR.glob("*.pdf"))
+    if not pdf_files:
+        print("[ERROR] No PDFs found. Aborting.")
         return
-
-    final_dataset = pd.concat(all_labeled_dfs, ignore_index=True)
-    output_columns = [
-        'filename', 'page_number', 'label', 'text', 'font_size', 'font_name', 'is_bold', 'word_count',
-        'is_all_caps', 'x_position', 'y_position', 'is_centered', 'is_title_case', 'has_numbers', 'has_symbols'
-    ]
-    final_dataset = final_dataset[[col for col in output_columns if col in final_dataset.columns]]
-
-    # 🧹 Data Cleanup
-    allowed_labels = {'Title'} | {f'H{i}' for i in range(1, 8)} | {'Body'}
-    initial_count = len(final_dataset)
-    final_dataset = final_dataset[
-        final_dataset['label'].isin(allowed_labels) &
-        final_dataset['text'].notna() &
-        final_dataset['text'].str.strip().ne("") &
-        final_dataset['page_number'].notna()
-    ].copy()
-    final_dataset['page_number'] = final_dataset['page_number'].astype(int)
-    dropped = initial_count - len(final_dataset)
-    if dropped > 0:
-        print(f"  -> Dropped {dropped} invalid or malformed rows.")
-
-    os.makedirs(os.path.dirname(PROCESSED_DATA_PATH), exist_ok=True)
-    final_dataset.to_csv(PROCESSED_DATA_PATH, index=False)
-    print(f"\n✅ Dataset created at '{PROCESSED_DATA_PATH}' with {len(final_dataset)} rows.")
-    print("\nLabel distribution:")
-    print(final_dataset['label'].value_counts())
+    num_processes = max(1, multiprocessing.cpu_count() - 1)
+    print(f"🚀 Found {len(pdf_files)} PDFs. Starting processing with {num_processes} parallel workers...")
+    all_dfs = []
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        results = pool.imap_unordered(process_single_pdf, pdf_files)
+        for df in tqdm(results, total=len(pdf_files), desc="Creating Dataset"):
+            if df is not None and not df.empty:
+                all_dfs.append(df)
+    if not all_dfs:
+        print("\n[ERROR] No data was extracted. Aborting.")
+        return
+    print("\n[INFO] Parallel processing complete. Concatenating results...")
+    full_dataset = pd.concat(all_dfs, ignore_index=True).dropna(subset=["text"])
+    full_dataset = full_dataset.drop(columns=["document"], errors="ignore")
+    full_dataset.to_csv(OUTPUT_CSV, index=False)
+    print(f"\n✅ Dataset created: {len(full_dataset)} rows saved to {OUTPUT_CSV.resolve()}")
 
 if __name__ == "__main__":
-    create_labeled_dataset()
+    multiprocessing.freeze_support()
+    main()
