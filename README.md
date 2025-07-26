@@ -21,10 +21,16 @@ aur main.py uss model se input files ki json banwata hae
 -->) refine train.py - randomforest use kr rha hae abhi code toh aur algos try krskte ho aur stacking boosting bhi (abhi dimaag mai aaya)
 
 
--->) refine main.py by maybe using teseract-ocr or some shit to make predictions more accurate 
+-->) refine main.py 
 
 
--->) make dataset larger
+-->) make dataset larger ( done)
+
+--------HOW TO RUN------------------------------------
+git clone 
+then download samples folder from drive link
+the python src/create_dataset.py
+then train.py aur main.py run krni hae
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 
