@@ -1,0 +1,8 @@
+PyMuPDF
+sentence-transformers
+scikit-learn
+numpy
+pandas
+torch
+transformers
+joblib
