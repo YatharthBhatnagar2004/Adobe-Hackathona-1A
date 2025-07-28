@@ -1,2 +1,4 @@
+.gitignore
+.gitattributes
 virtualENV
 catboost_info
