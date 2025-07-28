@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-src/train.py (FINAL, CORRECTED VERSION)
-Builds and trains a stacking ensemble with correct handling of early stopping.
-"""
-
 import warnings
 from pathlib import Path
 import joblib
@@ -23,7 +17,6 @@ from xgboost import XGBClassifier
 from catboost import CatBoostClassifier
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# Centralized Configuration
 CONFIG = {
     "TEST_SIZE": 0.2, "RANDOM_STATE": 42,
     "TFIDF_PARAMS": {"max_features": 30000, "min_df": 2, "max_df": 0.95, "ngram_range": (1, 2)},
@@ -37,15 +30,14 @@ CONFIG = {
         "learning_rate": 0.02, "subsample": 0.8, "colsample_bytree": 0.8,
         "eval_metric": "mlogloss", "early_stopping_rounds": 50
     },
-    # In the CONFIG dictionary
     "CATBOOST_PARAMS": {
-        "iterations": 1200,  # Equivalent to n_estimators
+        "iterations": 1200,  # n_estimators
         "learning_rate": 0.02,
         "depth": 10,
         "eval_metric": "MultiClass",
-        "auto_class_weights": "Balanced",  # Handles class imbalance
+        "auto_class_weights": "Balanced",  
         "early_stopping_rounds": 50,
-        "verbose": 0  # Suppresses verbose output
+        "verbose": 0  
     },
     "LGBM_PARAMS": {
         "objective": "multiclass", "metric": "multi_logloss", "n_estimators": 1500,
@@ -65,10 +57,10 @@ def check_gpu_support() -> str:
     try:
         import cupy
         cupy.cuda.runtime.getDeviceCount()
-        print("✅ CUDA-enabled GPU detected.")
+        print("CUDA-enabled GPU detected.")
         return "cuda"
     except (ImportError, cupy.cuda.runtime.CUDARuntimeError):
-        print("⚠️ CUDA-enabled GPU not found. Falling back to 'cpu'.")
+        print("CUDA-enabled GPU not found. Falling back to 'cpu'.")
         return "cpu"
 
 
@@ -110,8 +102,7 @@ def main():
         **CONFIG["XGB2_PARAMS"], device=device, use_label_encoder=False, verbosity=0)
     lgbm = lgb.LGBMClassifier(**CONFIG["LGBM_PARAMS"])
     catboost = CatBoostClassifier(**CONFIG["CATBOOST_PARAMS"])
-    # --- FIX: Manually train base estimators to handle early stopping ---
-    print("\n🚀 Training base models sequentially...")
+    print("\nTraining base models sequentially...")
 
     print("--- Training Model 1/2 (XGBoost) ---")
     xgb1.fit(X_train_processed, y_train, eval_set=[(X_test_processed, y_test)])
@@ -129,21 +120,18 @@ def main():
     meta_model = LogisticRegression(
         class_weight='balanced', solver='liblinear', max_iter=1000)
 
-    # Use cv='prefit' to tell the StackingClassifier the base models are already trained
     ensemble = StackingClassifier(
         estimators=base_estimators,
         final_estimator=meta_model,
-        cv='prefit',  # CRITICAL FIX
+        cv='prefit',  
         stack_method='predict_proba',
         passthrough=True
     )
 
-    print("\n🚀 Training Stacking meta-model...")
-    # This fit call now only trains the final_estimator on the outputs of the pre-trained base models
+    print("\nTraining Stacking meta-model...")
     ensemble.fit(X_train_processed, y_train)
     print("Training complete.")
 
-    # Create the final pipeline with the FITTED preprocessor and FITTED ensemble
     pipeline = Pipeline([("preprocessor", preprocessor), ("clf", ensemble)])
 
     print("\n--- Evaluation ---")
@@ -162,13 +150,13 @@ def main():
     plt.tight_layout()
     cm_path = MODEL_DIR / "confusion_matrix.png"
     plt.savefig(cm_path)
-    print(f"📊 Confusion matrix saved to {cm_path.resolve()}")
+    print(f"Confusion matrix saved to {cm_path.resolve()}")
 
     joblib.dump(pipeline, MODEL_DIR / "ensemble_pipeline.pkl")
     joblib.dump(le, MODEL_DIR / "label_encoder.pkl")
     size_mb = (MODEL_DIR / "ensemble_pipeline.pkl").stat().st_size / (1024*1024)
     print(
-        f"\n✅ Saved model (~{size_mb:.1f} MB) and artifacts to {MODEL_DIR.resolve()}")
+        f"\nSaved model (~{size_mb:.1f} MB) and artifacts to {MODEL_DIR.resolve()}")
 
 
 if __name__ == "__main__":

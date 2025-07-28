@@ -1,16 +1,9 @@
-#!/usr/bin/env python3
-"""
-src/create_dataset.py (FINAL VERSION)
-Extracts a rich, line-by-line feature set, including full contextual features,
-and creates a balanced dataset for training.
-"""
-
 import json
 import re
 from pathlib import Path
 from collections import Counter, defaultdict
 import multiprocessing
-import fitz  # PyMuPDF
+import fitz  
 import pandas as pd
 from rapidfuzz import fuzz
 from tqdm import tqdm
@@ -24,14 +17,12 @@ OUTPUT_CSV_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_CSV       = OUTPUT_CSV_DIR / "labeled_data.csv"
 
 def get_robust_body_size(sizes: list[float], percentile_range=(25, 75)) -> float:
-    """Calculates a robust body font size from a list of font sizes on a page."""
     if not sizes: return 12.0
     lower, upper = pd.Series(sizes).quantile([p/100 for p in percentile_range])
     plausible = [s for s in sizes if lower <= s <= upper]
     return Counter(plausible or sizes).most_common(1)[0][0]
 
 def extract_features(pdf_path: Path) -> pd.DataFrame:
-    """Extracts a rich feature set from each line of a PDF document."""
     rows = []
     try:
         doc = fitz.open(pdf_path)
@@ -84,7 +75,6 @@ def extract_features(pdf_path: Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 def label_rows(df: pd.DataFrame, gt: list) -> pd.DataFrame:
-    """Assigns labels to rows based on fuzzy matching against ground truth."""
     df["label"] = "Body"
     by_page = defaultdict(list); [by_page[h["page"]].append(h) for h in gt]
     
@@ -98,7 +88,6 @@ def label_rows(df: pd.DataFrame, gt: list) -> pd.DataFrame:
     return df
 
 def process_single_pdf(pdf_path: Path) -> pd.DataFrame | None:
-    """Extracts features and labels for a single PDF file."""
     df = extract_features(pdf_path);
     if df.empty: return None
     gt_file = GROUNDTRUTH_DIR / f"{pdf_path.stem}.json"
@@ -109,7 +98,6 @@ def process_single_pdf(pdf_path: Path) -> pd.DataFrame | None:
     return df
 
 def balance_dataset(df: pd.DataFrame, ratio: int = 1, random_state: int = 42) -> pd.DataFrame:
-    """Reduces the number of 'Body' samples to balance the dataset."""
     non_body_df, body_df = df[df["label"] != "Body"], df[df["label"] == "Body"]
     n_body_samples = min(len(body_df), len(non_body_df) * ratio)
     if n_body_samples < len(body_df):
@@ -119,11 +107,10 @@ def balance_dataset(df: pd.DataFrame, ratio: int = 1, random_state: int = 42) ->
     return df
 
 def main():
-    """Main function to process PDFs in parallel and create a final, balanced dataset."""
     pdf_files = sorted(list(INPUT_PDF_DIR.glob("*.pdf")))
     if not pdf_files: print("[ERROR] No PDFs found. Aborting."); return
     num_processes = max(1, multiprocessing.cpu_count() - 1)
-    print(f"🚀 Found {len(pdf_files)} PDFs. Starting processing with {num_processes} workers...")
+    print(f"Found {len(pdf_files)} PDFs. Starting processing with {num_processes} workers...")
     
     with multiprocessing.Pool(processes=num_processes) as pool:
         all_dfs = list(tqdm(pool.imap_unordered(process_single_pdf, pdf_files), total=len(pdf_files), desc="Creating Dataset"))
@@ -136,6 +123,6 @@ def main():
     print("\nNew balanced label distribution:"); print(balanced_dataset['label'].value_counts(normalize=True).round(3))
 
     balanced_dataset.drop(columns=["document"], errors="ignore").to_csv(OUTPUT_CSV, index=False)
-    print(f"\n✅ Dataset created: {len(balanced_dataset)} rows saved to {OUTPUT_CSV.resolve()}")
+    print(f"\nDataset created: {len(balanced_dataset)} rows saved to {OUTPUT_CSV.resolve()}")
 
 if __name__ == "__main__": multiprocessing.freeze_support(); main()

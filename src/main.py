@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-src/main.py (FINAL VERSION)
-Runs inference with full contextual features and advanced post-processing.
-Uses CPU for stability and includes timeouts.
-"""
 from sklearn.pipeline import Pipeline 
 import json
 import re
@@ -123,7 +117,6 @@ def process_single_pdf(pdf_path: Path) -> None:
 
         clf = PIPELINE.named_steps['clf']
         for est_wrapper in clf.estimators_:
-             # est_wrapper is either the model or a pipeline containing the model
             est = est_wrapper
             if isinstance(est_wrapper, Pipeline):
                  est = est_wrapper.steps[-1][1]
@@ -150,18 +143,18 @@ def main():
     if not pdf_files: print(f"[ERROR] No PDFs found in {INPUT_DIR.resolve()}. Aborting."); return
 
     num_processes = max(1, multiprocessing.cpu_count() - 1)
-    print(f"🚀 Found {len(pdf_files)} PDFs. Starting CPU inference with {num_processes} workers...")
+    print(f"Found {len(pdf_files)} PDFs. Starting CPU inference with {num_processes} workers...")
 
     with multiprocessing.Pool(processes=num_processes) as pool:
         results = [pool.apply_async(process_single_pdf, (pdf_path,)) for pdf_path in pdf_files]
         with tqdm(total=len(pdf_files), desc="Running Inference") as pbar:
             for res in results:
                 try: res.get(timeout=PDF_PROCESS_TIMEOUT)
-                except multiprocessing.TimeoutError: pbar.write(f"⚠️ Task timed out. Skipping.")
-                except Exception as e: pbar.write(f"⚠️ Worker process failed: {e}")
+                except multiprocessing.TimeoutError: pbar.write(f"Task timed out. Skipping.")
+                except Exception as e: pbar.write(f"Worker process failed: {e}")
                 pbar.update(1)
 
-    print(f"\n✅ Inference complete. Output files are in {OUTPUT_DIR.resolve()}")
+    print(f"\nInference complete. Output files are in {OUTPUT_DIR.resolve()}")
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
