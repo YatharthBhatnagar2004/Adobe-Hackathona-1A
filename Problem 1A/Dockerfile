@@ -1,17 +1,29 @@
-# Specify the platform as required by the hackathon [cite: 57]
-FROM --platform=linux/amd64 python:3.9-slim
+FROM python:3.11-slim
 
-# Set the working directory inside the container
 WORKDIR /app
 
-# Copy the requirements file and install dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
+
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the trained model and the source code into the container
-COPY ./models/ /app/models/
-COPY ./src/ /app/src/
+COPY . .
 
-# Define the command that will run your solution
-# This main.py script must handle the I/O from /app/input and /app/output
-CMD [ "python", "/app/src/main.py" ]
+RUN mkdir -p input output models data
+
+ENV PYTHONPATH=/app/src
+ENV PYTHONUNBUFFERED=1
+
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+CMD ["python", "src/main.py"]
