@@ -1,3 +1,4 @@
+
 from sklearn.pipeline import Pipeline 
 import json
 import re
@@ -10,8 +11,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-# Paths
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+PROJECT_ROOT = Path(_file_).resolve().parent.parent
 INPUT_DIR = PROJECT_ROOT / "input"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 MODEL_DIR = PROJECT_ROOT / "models"
@@ -115,6 +116,12 @@ def process_single_pdf(pdf_path: Path) -> None:
         df = extract_features(pdf_path)
         if df.empty: return
 
+      
+        preprocessor = PIPELINE.named_steps['preprocessor']
+        if hasattr(preprocessor, 'n_jobs'):
+            preprocessor.n_jobs = 1
+        # --- END OF FIX ---
+
         clf = PIPELINE.named_steps['clf']
         for est_wrapper in clf.estimators_:
             est = est_wrapper
@@ -124,6 +131,8 @@ def process_single_pdf(pdf_path: Path) -> None:
             if hasattr(est, 'set_params'):
                 if 'device' in est.get_params():
                     est.set_params(device='cpu')
+                if 'n_jobs' in est.get_params():
+                    est.set_params(n_jobs=1)
 
         proba = PIPELINE.predict_proba(df)
         df["level"] = LABEL_ENCODER.inverse_transform(np.argmax(proba, axis=1))
@@ -143,19 +152,19 @@ def main():
     if not pdf_files: print(f"[ERROR] No PDFs found in {INPUT_DIR.resolve()}. Aborting."); return
 
     num_processes = max(1, multiprocessing.cpu_count() - 1)
-    print(f"Found {len(pdf_files)} PDFs. Starting CPU inference with {num_processes} workers...")
+    print(f"🚀 Found {len(pdf_files)} PDFs. Starting CPU inference with {num_processes} workers...")
 
     with multiprocessing.Pool(processes=num_processes) as pool:
         results = [pool.apply_async(process_single_pdf, (pdf_path,)) for pdf_path in pdf_files]
         with tqdm(total=len(pdf_files), desc="Running Inference") as pbar:
             for res in results:
                 try: res.get(timeout=PDF_PROCESS_TIMEOUT)
-                except multiprocessing.TimeoutError: pbar.write(f"Task timed out. Skipping.")
-                except Exception as e: pbar.write(f"Worker process failed: {e}")
+                except multiprocessing.TimeoutError: pbar.write(f"⚠ Task timed out. Skipping.")
+                except Exception as e: pbar.write(f"⚠ Worker process failed: {e}")
                 pbar.update(1)
 
-    print(f"\nInference complete. Output files are in {OUTPUT_DIR.resolve()}")
+    print(f"\n✅ Inference complete. Output files are in {OUTPUT_DIR.resolve()}")
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     multiprocessing.freeze_support()
     main()
