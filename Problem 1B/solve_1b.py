@@ -303,7 +303,7 @@ def main(input_json_path: Path):
 
 
 if __name__ == "__main__":
-    input_file = Path("challenge1b_input.json")
+    input_file = Path("input_1b/challenge1b_input.json")
     if not input_file.exists():
         print(f"❌ Error: Input JSON file not found at {input_file}")
     else:

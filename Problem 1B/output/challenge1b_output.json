@@ -1,0 +1,67 @@
+{
+    "metadata": {
+        "input_documents": [
+            "Breakfast Ideas.pdf",
+            "Dinner Ideas - Mains_1.pdf",
+            "Dinner Ideas - Mains_2.pdf",
+            "Dinner Ideas - Mains_3.pdf",
+            "Dinner Ideas - Sides_1.pdf",
+            "Dinner Ideas - Sides_2.pdf",
+            "Dinner Ideas - Sides_3.pdf",
+            "Dinner Ideas - Sides_4.pdf",
+            "Lunch Ideas.pdf"
+        ],
+        "persona": "Food Contractor",
+        "job_to_be_done": "Prepare a vegetarian buffet-style dinner menu for a corporate gathering, including gluten-free items.",
+        "processing_timestamp": "2025-07-28T21:25:30.175154"
+    },
+    "extracted_sections": [
+        {
+            "document": "Dinner Ideas - Mains_1.pdf",
+            "section_title": "9 lasagna noodles, cooked",
+            "importance_rank": 1,
+            "page_number": 5
+        },
+        {
+            "document": "Dinner Ideas - Mains_3.pdf",
+            "section_title": "4 chicken thighs",
+            "importance_rank": 2,
+            "page_number": 6
+        },
+        {
+            "document": "Dinner Ideas - Mains_2.pdf",
+            "section_title": "Tortillas for serving",
+            "importance_rank": 3,
+            "page_number": 8
+        },
+        {
+            "document": "Dinner Ideas - Sides_3.pdf",
+            "section_title": "Nom Du Du (Green Papaya Salad)",
+            "importance_rank": 4,
+            "page_number": 13
+        },
+        {
+            "document": "Dinner Ideas - Sides_3.pdf",
+            "section_title": "Kartoffelsalat (Potato Salad)",
+            "importance_rank": 5,
+            "page_number": 4
+        }
+    ],
+    "subsection_analysis": [
+        {
+            "document": "Dinner Ideas - Mains_1.pdf",
+            "refined_text": " 2 cups shredded mozzarella cheese",
+            "page_number": 5
+        },
+        {
+            "document": "Dinner Ideas - Mains_3.pdf",
+            "refined_text": " 1 small onion, diced  2 cloves garlic, minced  1 cup chicken broth  1/2 cup dried apricots, chopped  1/2 cup green olives  1 tablespoon olive oil  1 teaspoon cumin ",
+            "page_number": 6
+        },
+        {
+            "document": "Dinner Ideas - Mains_2.pdf",
+            "refined_text": " Shredded lettuce, diced tomatoes, shredded cheese, sour cream, and salsa for toppings Instructions:  In a large skillet, heat vegetable oil over medium heat  Cook sliced chicken, bell pepper, and onion until chicken is cooked through and vegetables are tender  Serve chicken and vegetables in tortillas with desired toppings",
+            "page_number": 8
+        }
+    ]
+}
